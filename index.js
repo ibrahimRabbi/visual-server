@@ -1,10 +1,12 @@
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const stripe = require('stripe')("sk_test_51NFaHHHYxG7WJPCTo6DyF8n9Ty7LHso58T2LKEWbMN1RnwDs6Vdb8c1AIEk6ywGP4JAayNmD8PMlNtmwQBIsvcjK00SvyfXze0")
+var jwt = require('jsonwebtoken');
 const express = require('express')
 const cors = require('cors')
 require('dotenv').config()
 const app = express();
 const port = process.env.PORT || 5000
-var jwt = require('jsonwebtoken');
+
 //middlewere
 app.use(express.json())
 app.use(cors())
@@ -27,6 +29,7 @@ const client = new MongoClient(uri, {
 const courseDataCollaction = client.db('visual').collection('courses')
 const saveCourseCollaction = client.db('visual').collection('saveCourses')
 const userCollaction = client.db('visual').collection('users')
+const enrolledCollaction = client.db('visual').collection('enrolled')
 
 const verifyJwt = (req,res,next) => {
     console.log('hwt verify func hitting')
@@ -86,6 +89,25 @@ async function run() {
             const user = req.body
             const token = jwt.sign(user, accessToken,{ expiresIn: '1h' })
             res.send({refreshToken:token})
+        })
+
+        app.post("/create-payment-intent", async (req, res) => {
+            const { price } = req.body;
+            const paymentIntent = await stripe.paymentIntents.create({
+                amount: price * 100,
+                currency: "bdt",
+                payment_method_types: ["card"],
+            });
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            });
+        });
+
+        app.post('/enrolled', async (req, res) => {
+            const id = { _id: new ObjectId(req.body.id) }
+            const data = await courseDataCollaction.findOne(id)
+            const response = await enrolledCollaction.insertOne(data)
+            res.send(response)
         })
 
     } finally {
