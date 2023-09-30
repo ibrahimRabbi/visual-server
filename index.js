@@ -31,16 +31,16 @@ const saveCourseCollaction = client.db('visual').collection('saveCourses')
 const userCollaction = client.db('visual').collection('users')
 const enrolledCollaction = client.db('visual').collection('enrolled')
 
-const verifyJwt = (req,res,next) => {
+const verifyJwt = (req, res, next) => {
     console.log('hwt verify func hitting')
     const token = req.headers.authorization
     if (!token) {
-        return res.status(401).send({error:true,message:"unauthorizde access"})
+        return res.status(401).send({ error: true, message: "unauthorizde access" })
     }
 
     jwt.verify(token, accessToken, (error, decode) => {
         if (error) {
-            return req.status(403).send({error:true,message:'unauthorized access'})
+            return res.status(403).send({ error: true, message: 'unauthorized access' })
         }
         req.decode = decode
         next()
@@ -52,8 +52,27 @@ async function run() {
         await client.connect();
 
         app.get('/data', async (req, res) => {
-            const data = await courseDataCollaction.find().toArray()
+            let query = {}
+            if (req.query.email) {
+                query = { email: req.query.email }
+            }
+            if (req.query.search) {
+                query = { name: { $regex: req.query.search, $options: 'i' } }
+            }
+            const data = await courseDataCollaction.find(query).toArray()
             res.send(data)
+        })
+
+        app.post('/data', async (req, res) => {
+            const data = req.body
+            const response = await courseDataCollaction.insertOne(data)
+            res.send(response)
+        })
+
+        app.delete('/data/:id', async (req, res) => {
+            const id = { _id: new ObjectId(req.params.id) }
+            const delet = await courseDataCollaction.deleteOne(id)
+            res.send(delet)
         })
 
         app.get('/data/:id', async (req, res) => {
@@ -61,6 +80,22 @@ async function run() {
             const data = await courseDataCollaction.findOne(id)
             res.send(data)
         })
+
+        app.patch("/data/:id", async (req, res) => {
+            const data = req.body;
+            const id = { _id: new ObjectId(req.params.id) };
+            const options = { upsert: true };
+            const updateDoc = {
+                $set: {
+                    name: data.className,
+                    price: data.classPrice,
+                    thumbnail : data.videoLink,
+                    img: data.image,
+                },
+            };
+            const result = await courseDataCollaction.updateOne(id, updateDoc, options);
+            res.send(result);
+        });
 
         app.post('/savecourse', async (req, res) => {
             const added = await saveCourseCollaction.insertOne(req.body)
@@ -72,6 +107,13 @@ async function run() {
             res.send(user)
         })
 
+        app.get('/user', async (req, res) => {
+            const email = { email: req.query.email }
+            const user = await userCollaction.findOne(email)
+            res.send(user)
+        })
+
+
         app.get('/savecourse', verifyJwt, async (req, res) => {
             console.log(req.decode)
             const query = { email: req.query.email }
@@ -80,15 +122,15 @@ async function run() {
         })
 
         app.delete('/savecourse/:id', async (req, res) => {
-            const id = { _id: new ObjectId(req.params.id)}
+            const id = { _id: new ObjectId(req.params.id) }
             const data = await saveCourseCollaction.deleteOne(id)
             res.send(data)
         })
 
         app.post('/jwt', (req, res) => {
             const user = req.body
-            const token = jwt.sign(user, accessToken,{ expiresIn: '1h' })
-            res.send({refreshToken:token})
+            const token = jwt.sign(user, accessToken, { expiresIn: '1h' })
+            res.send({ refreshToken: token })
         })
 
         app.post("/create-payment-intent", async (req, res) => {
@@ -106,8 +148,18 @@ async function run() {
         app.post('/enrolled', async (req, res) => {
             const id = { _id: new ObjectId(req.body.id) }
             const data = await courseDataCollaction.findOne(id)
-            const response = await enrolledCollaction.insertOne(data)
+            const object = {
+                userEmail: req.body.UserEmail,
+                ...data
+            }
+            const response = await enrolledCollaction.insertOne(object)
             res.send(response)
+        })
+
+        app.get('/enrolled', async (req, res) => {
+            const query = { userEmail: req.query.email }
+            const data = await enrolledCollaction.find(query).toArray()
+            res.send(data)
         })
 
     } finally {
