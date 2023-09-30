@@ -49,7 +49,7 @@ const verifyJwt = (req, res, next) => {
 }
 async function run() {
     try {
-        await client.connect();
+        //await client.connect();
 
         app.get('/data', async (req, res) => {
             let query = {}
